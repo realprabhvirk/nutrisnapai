@@ -45,15 +45,30 @@ export async function generate(env, { system, parts, temperature = 0.3, maxOutpu
   const payload = {
     system_instruction: { parts: [{ text: system }] },
     contents: [{ parts }],
-    generationConfig: { temperature, maxOutputTokens, responseMimeType: "application/json" },
+    // Thinking off: this is extraction, not reasoning. Cuts latency a lot.
+    generationConfig: { temperature, maxOutputTokens, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } },
   };
 
+  const started = Date.now();
   for (let attempt = 0; attempt < 2; attempt++) {
-    const resp = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let resp;
+    try {
+      resp = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(40000),
+      });
+    } catch (e) {
+      throw Object.assign(new Error("The AI took too long to respond. Try again."), { status: 504 });
+    }
+    console.log(`[ai] model=${model} status=${resp.status} ms=${Date.now() - started} attempt=${attempt}`);
+    if (resp.status === 400 && payload.generationConfig.thinkingConfig) {
+      // Model doesn't accept the thinking setting: retry once without it.
+      delete payload.generationConfig.thinkingConfig;
+      attempt--;
+      continue;
+    }
     if (resp.ok) {
       const data = await resp.json();
       const cand = data.candidates?.[0];

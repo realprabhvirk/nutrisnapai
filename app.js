@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ─── Image Compression for iPhone / Mobile ───────────────────
-  function compressImage(file, maxDimension = 1200, quality = 0.85) {
+  function compressImage(file, maxDimension = 1024, quality = 0.8) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -246,19 +246,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let stepIndex = 0;
     if (analyzingStepText) analyzingStepText.textContent = steps[0];
     const interval = setInterval(() => {
-      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
-      if (analyzingStepText) analyzingStepText.textContent = steps[stepIndex];
-    }, 1800);
+      stepIndex = Math.min(stepIndex + 1, steps.length);
+      if (analyzingStepText) analyzingStepText.textContent = steps[stepIndex] || 'Still working, almost there';
+    }, 3000);
 
     analyzeImage().finally(() => clearInterval(interval));
   }
 
   async function api(path, payload, signal) {
+    const timeout = AbortSignal.timeout(50000);
+    const sig = signal && AbortSignal.any ? AbortSignal.any([signal, timeout]) : (signal || timeout);
     const resp = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal,
+      signal: sig,
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok && !data.error) data.error = `Request failed (${resp.status}).`;
@@ -289,9 +291,10 @@ document.addEventListener('DOMContentLoaded', () => {
       currentHistoryId = saveToHistory(data, currentImageData.dataUrl);
       renderResults(data, currentMultiplier);
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (abortController.signal.aborted) return; // user cancelled
       console.error('Analysis error:', err);
-      showError('Connection problem', 'Could not reach the server. Check your connection and try again.');
+      showError(err.name === 'TimeoutError' ? 'Taking too long' : 'Connection problem',
+        err.name === 'TimeoutError' ? 'The analysis timed out. Try again, or use a smaller photo.' : 'Could not reach the server. Check your connection and try again.');
     }
   }
 
@@ -439,11 +442,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // Nutritionist Tip
     tipText.textContent = raw.health_tip || '';
 
+    renderInsights(raw, cals, p);
+
     if (!opts.keepChat) {
       chatLog = [];
       chatThread.innerHTML = '';
       askInput.value = '';
       showSection(resultsSection);
+    }
+  }
+
+  // ─── Goal insights ───────────────────────────────────────────
+  function renderInsights(raw, cals, prot) {
+    const g = getGoals();
+    const prof = getProfile();
+    const eaten = getDailyMeals().reduce((a, m) => a + (m.calories || 0), 0);
+    const left = g.cal - eaten - cals;
+    const goalName = { lose: 'Fat loss', gain: 'Building', maintain: 'Maintaining' }[prof.goal] || 'Daily';
+    $('insightGoalBadge').textContent = goalName;
+    $('insDayPct').textContent = `${Math.round((cals / g.cal) * 100)}%`;
+    $('insProtPct').textContent = `${Math.round((prot / g.p) * 100)}%`;
+    $('insLeft').textContent = Math.abs(left).toLocaleString();
+    $('insLeftLabel').textContent = left >= 0 ? 'kcal left if logged' : 'kcal over if logged';
+
+    const list = $('insightList');
+    const items = (raw.goal_insights || []).filter(i => i && i.text);
+    list.innerHTML = items.map(i => `<li class="${['good', 'watch'].includes(i.status) ? i.status : 'info'}">${escapeHtml(i.text)}</li>`).join('');
+    if (!items.length && !hasProfile()) {
+      list.innerHTML = '<li class="info"><button class="link-btn" id="insProfileLink">Add your profile</button> to get insights for your goal.</li>';
+      $('insProfileLink').addEventListener('click', openProfile);
     }
   }
 

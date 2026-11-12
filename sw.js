@@ -4,7 +4,7 @@
  * API endpoints (/api/*) always use network-first.
  */
 
-const CACHE_NAME = 'nutrisnap-v5';
+const CACHE_NAME = 'nutrisnap-v6';
 const SHELL_ASSETS = [
   '/',
   '/index.html',

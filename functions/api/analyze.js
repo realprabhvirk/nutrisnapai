@@ -17,8 +17,11 @@ Return ONLY JSON in this shape:
   "totals": {"calories": 450, "protein_g": 58, "carbs_g": 32, "fat_g": 10, "fiber_g": 5, "sugar_g": 3},
   "dietary_tags": ["High Protein"],
   "summary": "One or two plain sentences, including any assumptions you made.",
-  "health_tip": "One concrete sentence."
+  "health_tip": "One concrete sentence.",
+  "goal_insights": [{"status": "good", "text": "High protein for a fat-loss day: 51g covers about a third of your target."}]
 }
+
+goal_insights: 2 to 3 short items that judge this meal against the user's goal, calorie target and body (status is "good", "watch" or "info"). Be specific with numbers. If there is no profile, return an empty array.
 
 Rules:
 - All numbers are numbers, not strings. totals must equal the sum of items.

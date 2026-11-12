@@ -418,3 +418,16 @@ input { font: inherit; }
 .hm-track i { display: block; height: 100%; width: 0; border-radius: var(--r-full); transition: width .8s var(--ease); }
 .goal-tag { align-self: flex-start; padding: 6px 12px; background: var(--input); border-radius: var(--r-full); font-size: .74rem; font-weight: 600; color: var(--muted); }
 .home-meals .section-label-row { margin-bottom: 8px; }
+
+/* ── Insights ── */
+.insights-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px; box-shadow: var(--shadow); }
+.insight-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.insight-stats > div { display: flex; flex-direction: column; padding: 10px; background: var(--input); border-radius: var(--r-md); }
+.insight-stats strong { font-size: 1.15rem; font-weight: 800; letter-spacing: -.4px; }
+.insight-stats span { font-size: .68rem; color: var(--muted); line-height: 1.25; }
+.insight-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.insight-list li { position: relative; padding-left: 16px; font-size: .86rem; color: var(--text); line-height: 1.4; }
+.insight-list li::before { content: ''; position: absolute; left: 0; top: .5em; width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.insight-list li.good::before { background: var(--accent); }
+.insight-list li.watch::before { background: var(--carbs); }
+.insight-list:empty { display: none; }
