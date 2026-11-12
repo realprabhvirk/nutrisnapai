@@ -18,10 +18,13 @@ Return ONLY JSON in this shape:
   "dietary_tags": ["High Protein"],
   "summary": "One or two plain sentences, including any assumptions you made.",
   "health_tip": "One concrete sentence.",
-  "goal_insights": [{"status": "good", "text": "High protein for a fat-loss day: 51g covers about a third of your target."}]
+  "goal_insights": [{"status": "good", "text": "High protein for a fat-loss day: 51g covers about a third of your target."}],
+  "improvements": [{"title": "Swap white rice for cauliflower rice", "benefit": "Saves about 150 kcal and adds fiber."}]
 }
 
 goal_insights: 2 to 3 short items that judge this meal against the user's goal, calorie target and body (status is "good", "watch" or "info"). Be specific with numbers. If there is no profile, return an empty array.
+
+improvements: exactly 3 realistic, specific ways to make THIS meal healthier or better aligned with the user's goal (swap, add, remove or change cooking method). Each has a short "title" (an action) and a one-sentence "benefit" with a number where possible. Easy to do at home.
 
 Rules:
 - All numbers are numbers, not strings. totals must equal the sum of items.

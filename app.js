@@ -443,6 +443,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tipText.textContent = raw.health_tip || '';
 
     renderInsights(raw, cals, p);
+    renderImprovements(raw);
 
     if (!opts.keepChat) {
       chatLog = [];
@@ -472,6 +473,66 @@ document.addEventListener('DOMContentLoaded', () => {
       list.innerHTML = '<li class="info"><button class="link-btn" id="insProfileLink">Add your profile</button> to get insights for your goal.</li>';
       $('insProfileLink').addEventListener('click', openProfile);
     }
+  }
+
+  // ─── Improvements + recipes (/api/recipe) ────────────────────
+  const recipeCache = new Map();
+
+  function renderImprovements(raw) {
+    const card = $('improveCard');
+    const list = $('improveList');
+    const ideas = (raw.improvements || []).filter(i => i && i.title).slice(0, 3);
+    card.style.display = ideas.length ? '' : 'none';
+    list.innerHTML = '';
+    ideas.forEach(idea => {
+      const row = document.createElement('div');
+      row.className = 'improve-item';
+      row.innerHTML = `
+        <div class="improve-main">
+          <div class="improve-text">
+            <strong>${escapeHtml(idea.title)}</strong>
+            <span>${escapeHtml(idea.benefit || '')}</span>
+          </div>
+          <button class="pill-btn pill-ghost pill-sm">How to</button>
+        </div>
+        <div class="recipe" style="display:none"></div>`;
+      const btn = row.querySelector('button');
+      const box = row.querySelector('.recipe');
+      btn.addEventListener('click', () => toggleRecipe(idea, btn, box));
+      list.appendChild(row);
+    });
+  }
+
+  async function toggleRecipe(idea, btn, box) {
+    if (box.style.display !== 'none') {
+      box.style.display = 'none';
+      btn.textContent = 'How to';
+      return;
+    }
+    btn.textContent = 'Hide';
+    box.style.display = '';
+    const key = `${currentHistoryId}|${idea.title}`;
+    let rec = recipeCache.get(key);
+    if (!rec) {
+      box.innerHTML = '<div class="recipe-loading"><div class="status-spinner"></div><span>Writing the method…</span></div>';
+      try {
+        rec = await api('/api/recipe', { suggestion: idea, analysis: currentRawData, profile: profileForAI() });
+        if (!rec.error) recipeCache.set(key, rec);
+      } catch {
+        rec = { error: 'Could not reach the server. Try again.' };
+      }
+    }
+    if (rec.error) {
+      box.innerHTML = `<p class="recipe-error">${escapeHtml(rec.error)}</p>`;
+      return;
+    }
+    box.innerHTML = `
+      ${rec.time_min ? `<span class="recipe-time">${escapeHtml(String(rec.time_min))} min</span>` : ''}
+      <h4>Ingredients</h4>
+      <ul>${(rec.ingredients || []).map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>
+      <h4>Method</h4>
+      <ol>${(rec.steps || []).map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ol>
+      ${rec.result ? `<p class="recipe-result">${escapeHtml(rec.result)}</p>` : ''}`;
   }
 
   // ─── Nutritionist chat (/api/ask) ────────────────────────────
