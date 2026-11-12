@@ -40,13 +40,17 @@ export async function generate(env, { system, parts, temperature = 0.3, maxOutpu
     e.status = 500;
     throw e;
   }
-  const model = env.AI_MODEL || "gemini-2.5-flash-lite";
+  const model = env.AI_MODEL || "gemini-3.5-flash-lite";
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
     system_instruction: { parts: [{ text: system }] },
     contents: [{ parts }],
-    // Thinking off: this is extraction, not reasoning. Cuts latency a lot.
-    generationConfig: { temperature, maxOutputTokens, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } },
+    // Minimal reasoning: this is extraction, not problem solving. Cuts latency a lot.
+    // Gemini 3.x uses thinkingLevel; older models use thinkingBudget.
+    generationConfig: {
+      temperature, maxOutputTokens, responseMimeType: "application/json",
+      thinkingConfig: /gemini-[3-9]/.test(model) ? { thinkingLevel: "minimal" } : { thinkingBudget: 0 },
+    },
   };
 
   const started = Date.now();
