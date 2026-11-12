@@ -1,7 +1,6 @@
 /**
- * NutriSnap — AI Food & Drink Nutritionist PWA Logic
- * iPhone-optimized with client-side image compression, portion scaling,
- * daily meal logging, interactive nutritionist questions, and sample demos.
+ * NutriSnap — photo-based meal analysis.
+ * Profile, history and daily log are stored in this browser (localStorage).
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -60,13 +59,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const itemsCountBadge  = document.getElementById('itemsCountBadge');
   const tipText          = document.getElementById('tipText');
 
-  // Ask AI elements
+  // Chat elements
+  const chatThread       = document.getElementById('chatThread');
   const askForm          = document.getElementById('askForm');
   const askInput         = document.getElementById('askInput');
-  const askResponseBox   = document.getElementById('askResponseBox');
-  const askSpinner       = document.getElementById('askSpinner');
-  const askResponseText  = document.getElementById('askResponseText');
+  const askSubmitBtn     = document.getElementById('askSubmitBtn');
   const askPromptChips   = document.querySelectorAll('.ask-prompt-chip');
+  const mealName         = document.getElementById('mealName');
+
+  // Brand / profile elements
+  const homeBtn          = document.getElementById('homeBtn');
+  const profileBtn       = document.getElementById('profileBtn');
+  const profilePanel     = document.getElementById('profilePanel');
+  const closeProfileBtn  = document.getElementById('closeProfileBtn');
+  const profileNudge     = document.getElementById('profileNudge');
+  const pfTarget         = document.getElementById('pfTarget');
+  const dailyGoalLabel   = document.getElementById('dailyGoalLabel');
 
   // Result Action buttons
   const logMealBtn       = document.getElementById('logMealBtn');
@@ -118,6 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentRawData     = null; // Unscaled JSON from API
   let currentMultiplier  = 1.0;
   let abortController    = null;
+  let currentHistoryId   = null;
+  let chatLog            = []; // { role: 'user'|'ai', text }
 
   // ─── Section Navigation ──────────────────────────────────────
   function showSection(section) {
@@ -213,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function processFile(file) {
     try {
-      showToast('Processing photo...');
+      
       currentImageData = await compressImage(file);
       startAnalysis();
     } catch (err) {
@@ -222,196 +232,76 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ─── Sample Foods Click Handlers ─────────────────────────────
-  document.querySelectorAll('.sample-card').forEach(card => {
-    card.addEventListener('click', async () => {
-      const sampleFile = card.getAttribute('data-sample');
-      const title = card.getAttribute('data-title');
-      if (!sampleFile) return;
-
-      try {
-        showToast(`Loading ${title}...`);
-        const response = await fetch(`samples/${sampleFile}`);
-        const blob = await response.blob();
-        currentImageData = await compressImage(blob);
-        startAnalysis();
-      } catch (err) {
-        console.error('Error loading sample:', err);
-        showError('Sample Error', 'Could not load sample image. Please try camera or gallery.');
-      }
-    });
-  });
-
   // ─── Analysis Flow ───────────────────────────────────────────
   function startAnalysis() {
     previewImage.src = currentImageData.dataUrl;
     showSection(previewSection);
     analyzingOverlay.style.display = '';
 
-    // Animated status messages for delightful UX
     const steps = [
-      'Identifying ingredients & meal elements...',
-      'Estimating portion weights & visual scale...',
-      'Cross-referencing USDA nutritional database...',
-      'Computing calories, protein, carbs & fats...'
+      'Reading your photo',
+      'Estimating portions',
+      'Calculating nutrition',
     ];
     let stepIndex = 0;
+    if (analyzingStepText) analyzingStepText.textContent = steps[0];
     const interval = setInterval(() => {
-      stepIndex = (stepIndex + 1) % steps.length;
+      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
       if (analyzingStepText) analyzingStepText.textContent = steps[stepIndex];
-    }, 1200);
+    }, 1800);
 
     analyzeImage().finally(() => clearInterval(interval));
   }
 
-  // ─── Direct Fallback Engine ───────────────────────────────────
-  // If Cloudflare Pages is deployed statically without Edge Functions (returning 405 or 404),
-  // this engine automatically handles the analysis without interrupting the user.
-  const CF_FALLBACK_KEY = "AQ.Ab8RN6KCf4Kb0rEltshTHrN_vU1Jujh_QK5zKR9kuxV2ribR2Q";
-  const CF_FALLBACK_MODEL = "gemini-flash-lite-latest";
-
-  const SYSTEM_PROMPT = `You are NutriSnap, a world-class clinical nutritionist and food computer-vision expert.
-When given an image of food or a drink:
-1. Identify every visible item (ingredients, beverages, condiments, garnishes).
-2. Estimate realistic portion sizes based on plate size, cup dimensions, and visual scale.
-3. Compute nutritional breakdown according to standard USDA FoodData Central databases.
-4. Categorize with relevant dietary tags (e.g. High Protein, Low Carb, Keto Friendly, Vegan, Dairy-Free, Gluten-Free, High Fiber, Heart Healthy).
-5. Calculate macro percentage of total calories.
-Return ONLY a valid JSON object with: items (array of {name, portion, calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g}), totals ({calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g}), macro_percentages ({protein_pct, carbs_pct, fat_pct}), dietary_tags (array of strings), summary (string), health_tip (string).
-No markdown fences. Return pure JSON only.`;
-
-  async function callGeminiDirect(base64Image, mimeType) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${CF_FALLBACK_MODEL}:generateContent?key=${encodeURIComponent(CF_FALLBACK_KEY)}`;
-    const payload = {
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: [{
-        parts: [
-          { inlineData: { mimeType, data: base64Image } },
-          { text: "Analyze this food or drink image and provide the complete nutritional breakdown in the requested JSON format." }
-        ]
-      }],
-      generationConfig: { temperature: 0.2, topP: 0.9, maxOutputTokens: 2048 }
-    };
-
-    const resp = await fetch(endpoint, {
+  async function api(path, payload, signal) {
+    const resp = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: abortController.signal
+      signal,
     });
-
-    if (!resp.ok) {
-      const errJson = await resp.json().catch(() => ({}));
-      throw new Error(errJson.error?.message || `AI Service HTTP ${resp.status}`);
-    }
-
-    const data = await resp.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    let clean = rawText.trim();
-    if (clean.startsWith('```json')) clean = clean.slice(7);
-    else if (clean.startsWith('```')) clean = clean.slice(3);
-    if (clean.endsWith('```')) clean = clean.slice(0, -3);
-    return JSON.parse(clean.trim());
-  }
-
-  async function askGeminiDirect(mealContext, question) {
-    const prompt = `You are NutriSnap AI, a friendly, certified nutritionist.
-Meal Context: ${mealContext || "A healthy meal"}
-User Question: ${question}
-Provide a concise, friendly, helpful 2-4 sentence response specifically tailored to this meal and the user's health inquiry.`;
-
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${CF_FALLBACK_MODEL}:generateContent?key=${encodeURIComponent(CF_FALLBACK_KEY)}`;
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.5, maxOutputTokens: 500 }
-      })
-    });
-
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "No response received.";
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok && !data.error) data.error = `Request failed (${resp.status}).`;
+    return data;
   }
 
   async function analyzeImage() {
     abortController = new AbortController();
-
     try {
-      let data = null;
-
-      // 1. Try serverless edge endpoint (/api/analyze)
-      try {
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            image: currentImageData.base64,
-            mimeType: currentImageData.mimeType,
-          }),
-          signal: abortController.signal,
-        });
-
-        // If Cloudflare Pages returns 405 (Method Not Allowed) or 404 (static-only deployment),
-        // seamlessly fall back to direct processing without interrupting user
-        if (response.status === 405 || response.status === 404) {
-          console.log('[NutriSnap] Cloudflare Pages static route detected (405/404). Falling back to direct analysis.');
-          data = await callGeminiDirect(currentImageData.base64, currentImageData.mimeType);
-        } else if (response.ok) {
-          data = await response.json();
-        } else {
-          // If edge returned another error, try fallback before showing error
-          data = await callGeminiDirect(currentImageData.base64, currentImageData.mimeType);
-        }
-      } catch (fetchErr) {
-        if (fetchErr.name === 'AbortError') return;
-        // Network or route failure -> fallback
-        console.log('[NutriSnap] Route unreachable, using direct analysis fallback.');
-        data = await callGeminiDirect(currentImageData.base64, currentImageData.mimeType);
-      }
-
-      if (!data) {
-        showError('Analysis Failed', 'Could not obtain response from AI.');
-        return;
-      }
+      const data = await api('/api/analyze', {
+        image: currentImageData.base64,
+        mimeType: currentImageData.mimeType,
+        profile: profileForAI(),
+      }, abortController.signal);
 
       if (data.error) {
-        showError('Analysis Notice', data.error);
+        showError("Couldn't analyze that", data.error);
         return;
       }
-
       if (!data.totals || !data.items) {
-        showError('Unexpected Result', data.raw_response || 'Could not parse nutrition data. Please try another angle or clearer photo.');
+        showError('Unexpected result', 'Could not read the nutrition data. Try another photo.');
         return;
       }
 
-      // Save raw data & reset multiplier
       currentRawData = data;
       currentMultiplier = 1.0;
       resetPortionChips();
-
-      // Save to History
-      saveToHistory(data, currentImageData.dataUrl);
-
-      // Render Dashboard
+      currentHistoryId = saveToHistory(data, currentImageData.dataUrl);
       renderResults(data, currentMultiplier);
-
     } catch (err) {
       if (err.name === 'AbortError') return;
       console.error('Analysis error:', err);
-      showError('Analysis Error', err.message || 'Could not analyze this photo. Please try again.');
+      showError('Connection problem', 'Could not reach the server. Check your connection and try again.');
     }
   }
 
   cancelBtn.addEventListener('click', () => {
     if (abortController) abortController.abort();
-    showSection(uploadSection);
+    goHome();
   });
 
   scanAgainBtn.addEventListener('click', () => {
-    showSection(uploadSection);
-    updateRecentScans();
+    goHome();
   });
 
   retryBtn.addEventListener('click', () => {
@@ -429,17 +319,11 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
       chip.classList.add('active');
       currentMultiplier = parseFloat(chip.getAttribute('data-scale')) || 1.0;
       
-      const labels = {
-        0.5: '0.5x (Half Portion)',
-        1.0: '1.0x (Standard Portion)',
-        1.5: '1.5x (Large Portion)',
-        2.0: '2.0x (Double Portion)',
-      };
+      const labels = { 0.5: '0.5x', 1: '1x', 1.5: '1.5x', 2: '2x' };
       portionLabel.textContent = labels[currentMultiplier] || `${currentMultiplier}x`;
 
       if (currentRawData) {
         renderResults(currentRawData, currentMultiplier);
-        showToast(`Adjusted to ${labels[currentMultiplier]}`);
       }
     });
   });
@@ -449,11 +333,11 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
       if (c.getAttribute('data-scale') === '1.0') c.classList.add('active');
       else c.classList.remove('active');
     });
-    portionLabel.textContent = '1.0x (Standard Portion)';
+    portionLabel.textContent = '1x';
   }
 
   // ─── Render Results Dashboard ────────────────────────────────
-  function renderResults(raw, mult = 1.0) {
+  function renderResults(raw, mult = 1.0, opts = {}) {
     const items = raw.items || [];
     const rawTotals = raw.totals || {};
 
@@ -471,7 +355,7 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
 
     // Dietary tags
     dietaryTagsRow.innerHTML = '';
-    const tags = raw.dietary_tags || ['Balanced Meal'];
+    const tags = raw.dietary_tags || [];
     tags.forEach(t => {
       const span = document.createElement('span');
       span.className = 'diet-tag';
@@ -480,14 +364,15 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
     });
 
     // Summary
-    summaryText.textContent = raw.summary || 'Nutritional evaluation calculated using standard food data.';
+    mealName.textContent = raw.meal_name || (raw.items || []).map(i => i.name).slice(0, 2).join(' & ') || 'Your meal';
+    summaryText.textContent = raw.summary || '';
 
     // Calorie ring & count
     animateNumber(calNumber, cals);
     const circumference = 326.7; // 2 * PI * 52
-    const dailyTarget = 2000;
+    const dailyTarget = getGoals().cal;
     const pctOfDaily = Math.round((cals / dailyTarget) * 100);
-    calDailyPct.textContent = `${pctOfDaily}% of 2,000 kcal`;
+    calDailyPct.textContent = `${pctOfDaily}% of ${dailyTarget.toLocaleString()} kcal goal`;
 
     const progress = Math.min(cals / dailyTarget, 1);
     setTimeout(() => {
@@ -552,69 +437,80 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
     });
 
     // Nutritionist Tip
-    tipText.textContent = raw.health_tip || 'A balanced plate supports sustained energy throughout the day.';
+    tipText.textContent = raw.health_tip || '';
 
-    // Reset Ask AI box
-    askResponseBox.style.display = 'none';
-    askInput.value = '';
-
-    showSection(resultsSection);
+    if (!opts.keepChat) {
+      chatLog = [];
+      chatThread.innerHTML = '';
+      askInput.value = '';
+      showSection(resultsSection);
+    }
   }
 
-  // ─── Ask AI Nutritionist (/api/ask) ──────────────────────────
-  askForm.addEventListener('submit', async (e) => {
+  // ─── Nutritionist chat (/api/ask) ────────────────────────────
+  function addBubble(role, text, cls = '') {
+    const b = document.createElement('div');
+    b.className = `bubble ${role} ${cls}`.trim();
+    b.textContent = text;
+    chatThread.appendChild(b);
+    b.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return b;
+  }
+
+  askForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = askInput.value.trim();
-    if (!q) return;
-    await submitNutritionQuestion(q);
+    if (q) submitNutritionQuestion(q);
   });
 
   askPromptChips.forEach(chip => {
-    chip.addEventListener('click', async () => {
+    chip.addEventListener('click', () => {
       const q = chip.getAttribute('data-q');
-      if (q) {
-        askInput.value = q;
-        await submitNutritionQuestion(q);
-      }
+      if (q) submitNutritionQuestion(q);
     });
   });
 
   async function submitNutritionQuestion(question) {
-    if (!currentRawData) return;
+    if (!currentRawData || askSubmitBtn.disabled) return;
 
-    askResponseBox.style.display = 'block';
-    askSpinner.style.display = 'flex';
-    askResponseText.textContent = '';
-
-    const mealContext = `${currentRawData.summary || ''}. Total Calories: ${Math.round((currentRawData.totals?.calories || 0) * currentMultiplier)}, Protein: ${Math.round((currentRawData.totals?.protein_g || 0) * currentMultiplier)}g, Carbs: ${Math.round((currentRawData.totals?.carbs_g || 0) * currentMultiplier)}g, Fat: ${Math.round((currentRawData.totals?.fat_g || 0) * currentMultiplier)}g. Items: ${(currentRawData.items || []).map(i => i.name).join(', ')}.`;
+    addBubble('user', question);
+    askInput.value = '';
+    askSubmitBtn.disabled = true;
+    const typing = addBubble('ai', 'Thinking…', 'typing');
 
     try {
-      let answer = null;
-      try {
-        const resp = await fetch('/api/ask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mealContext, question })
-        });
-        if (resp.status === 405 || resp.status === 404 || !resp.ok) {
-          answer = await askGeminiDirect(mealContext, question);
-        } else {
-          const data = await resp.json();
-          answer = data.answer;
-        }
-      } catch (e) {
-        answer = await askGeminiDirect(mealContext, question);
+      const data = await api('/api/ask', {
+        question,
+        analysis: currentRawData,
+        multiplier: currentMultiplier,
+        profile: profileForAI(),
+        history: chatLog.slice(-8),
+      });
+      chatLog.push({ role: 'user', text: question });
+      typing.remove();
+
+      if (data.error) {
+        addBubble('ai', data.error, 'error');
+        return;
       }
 
-      askSpinner.style.display = 'none';
-      if (answer) {
-        askResponseText.textContent = answer;
-      } else {
-        askResponseText.textContent = 'Unable to consult nutritionist right now.';
+      chatLog.push({ role: 'ai', text: data.reply });
+      addBubble('ai', data.reply);
+
+      if (data.analysis) {
+        currentRawData = data.analysis;
+        currentMultiplier = 1.0;
+        resetPortionChips();
+        updateHistoryEntry(currentHistoryId, data.analysis);
+        renderResults(data.analysis, 1.0, { keepChat: true });
+        const t = data.analysis.totals || {};
+        addBubble('ai', `Updated: ${Math.round(t.calories || 0)} kcal · ${Math.round(t.protein_g || 0)}g protein · ${Math.round(t.carbs_g || 0)}g carbs · ${Math.round(t.fat_g || 0)}g fat`, 'update');
       }
     } catch (err) {
-      askSpinner.style.display = 'none';
-      askResponseText.textContent = 'Network error consulting AI nutritionist.';
+      typing.remove();
+      addBubble('ai', 'Could not reach the server. Try again.', 'error');
+    } finally {
+      askSubmitBtn.disabled = false;
     }
   }
 
@@ -630,7 +526,7 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
     const mealEntry = {
       id: Date.now(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      title: currentRawData.summary?.split('.')[0] || (currentRawData.items || []).map(i => i.name).slice(0, 2).join(' & ') || 'Logged Meal',
+      title: currentRawData.meal_name || (currentRawData.items || []).map(i => i.name).slice(0, 2).join(' & ') || 'Meal',
       thumbnail: currentImageData.dataUrl,
       calories: scaledCalories,
       protein: scaledProtein,
@@ -641,19 +537,16 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
 
     saveDailyMeal(mealEntry);
     updateDailyTrackerUI();
-    showToast(`Logged +${scaledCalories} kcal to today!`);
+    showToast(`Logged ${scaledCalories} kcal`);
 
     // Button feedback animation
     const originalText = logMealBtn.innerHTML;
-    logMealBtn.innerHTML = '<i data-lucide="check"></i> <span>Logged to Today!</span>';
-    logMealBtn.style.background = '#10b981';
+    logMealBtn.innerHTML = '<i data-lucide="check"></i><span>Logged</span>';
     if (window.lucide) lucide.createIcons();
-
     setTimeout(() => {
       logMealBtn.innerHTML = originalText;
-      logMealBtn.style.background = '';
       if (window.lucide) lucide.createIcons();
-    }, 2200);
+    }, 2000);
   });
 
   // ─── Share Meal Breakdown ────────────────────────────────────
@@ -664,21 +557,17 @@ Provide a concise, friendly, helpful 2-4 sentence response specifically tailored
     const p = Math.round((currentRawData.totals?.protein_g || 0) * currentMultiplier);
     const c = Math.round((currentRawData.totals?.carbs_g || 0) * currentMultiplier);
     const f = Math.round((currentRawData.totals?.fat_g || 0) * currentMultiplier);
-    const title = (currentRawData.items || []).map(i => i.name).slice(0, 3).join(', ') || 'My Meal';
-
-    const shareText = `🥗 NutriSnap Analysis:
-${title}
-🔥 ${cals} kcal | 🍗 ${p}g Protein | 🍞 ${c}g Carbs | 🥑 ${f}g Fat
-Analyzed with NutriSnap AI`;
+    const title = currentRawData.meal_name || (currentRawData.items || []).map(i => i.name).slice(0, 3).join(', ') || 'My meal';
+    const shareText = `${title}\n${cals} kcal · ${p}g protein · ${c}g carbs · ${f}g fat`;
 
     if (navigator.share) {
       navigator.share({
-        title: 'NutriSnap Meal Breakdown',
+        title: 'NutriSnap',
         text: shareText
       }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareText).then(() => {
-        showToast('Meal summary copied to clipboard!');
+        showToast('Copied');
       });
     }
   });
@@ -723,13 +612,15 @@ Analyzed with NutriSnap AI`;
 
     // Update Drawer Summary
     dailyTotalCals.textContent = totalCals.toLocaleString();
-    const calGoal = 2000;
+    const goals = getGoals();
+    const calGoal = goals.cal;
+    dailyGoalLabel.textContent = `/ ${calGoal.toLocaleString()} kcal`;
     const pct = Math.min(Math.round((totalCals / calGoal) * 100), 100);
     dailyCalsCircle.textContent = `${pct}%`;
 
-    const pGoal = 130;
-    const cGoal = 220;
-    const fGoal = 65;
+    const pGoal = goals.p;
+    const cGoal = goals.c;
+    const fGoal = goals.f;
 
     dailyProteinLabel.textContent = `${Math.round(totalP)}g / ${pGoal}g`;
     dailyCarbsLabel.textContent   = `${Math.round(totalC)}g / ${cGoal}g`;
@@ -744,7 +635,7 @@ Analyzed with NutriSnap AI`;
       dailyMealsList.innerHTML = `
         <div class="empty-state">
           <i data-lucide="utensils"></i>
-          <p>No meals logged yet today. Scan a meal and tap "Log to Today's Tracker"!</p>
+          <p>Nothing logged yet. Scan a meal and tap Log meal.</p>
         </div>
       `;
       clearDailyBtn.style.display = 'none';
@@ -797,7 +688,7 @@ Analyzed with NutriSnap AI`;
     if (confirm("Reset today's logged meals to 0?")) {
       localStorage.removeItem(getTodayKey());
       updateDailyTrackerUI();
-      showToast("Today's log cleared");
+      showToast('Cleared');
     }
   });
 
@@ -817,11 +708,12 @@ Analyzed with NutriSnap AI`;
     const history = getHistory();
     const entry = {
       id: Date.now(),
+      meal_name: data.meal_name || '',
       timestamp: new Date().toISOString(),
       thumbnail: imageDataUrl,
       summary: data.summary || '',
       calories: data.totals?.calories || 0,
-      items: (data.items || []).map(i => i.name).slice(0, 3).join(', '),
+      items: data.meal_name || (data.items || []).map(i => i.name).slice(0, 3).join(', '),
       fullData: data,
     };
 
@@ -837,6 +729,20 @@ Analyzed with NutriSnap AI`;
     }
 
     updateHistoryBadge();
+    updateRecentScans();
+    return entry.id;
+  }
+
+  function updateHistoryEntry(id, data) {
+    if (!id) return;
+    const history = getHistory();
+    const h = history.find(x => x.id === id);
+    if (!h) return;
+    h.summary = data.summary || '';
+    h.calories = data.totals?.calories || 0;
+    h.items = data.meal_name || (data.items || []).map(i => i.name).slice(0, 3).join(', ');
+    h.fullData = data;
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch {}
     updateRecentScans();
   }
 
@@ -857,7 +763,7 @@ Analyzed with NutriSnap AI`;
       historyList.innerHTML = `
         <div class="empty-state">
           <i data-lucide="search"></i>
-          <p>No scans yet. Snap a bowl of food or a drink to get started!</p>
+          <p>No scans yet.</p>
         </div>
       `;
       clearHistoryBtn.style.display = 'none';
@@ -872,7 +778,7 @@ Analyzed with NutriSnap AI`;
               <img src="${h.thumbnail}" alt="Food scan">
             </div>
             <div class="item-details">
-              <strong>${escapeHtml(h.items || h.summary || 'Meal Scan')}</strong>
+              <strong>${escapeHtml(h.items || h.summary || 'Meal')}</strong>
               <span class="item-meta">${dateStr}</span>
             </div>
             <span class="item-cal-badge">${h.calories} kcal</span>
@@ -888,6 +794,7 @@ Analyzed with NutriSnap AI`;
           if (found && found.fullData) {
             currentImageData = { dataUrl: found.thumbnail, base64: '', mimeType: 'image/jpeg' };
             currentRawData = found.fullData;
+            currentHistoryId = found.id;
             currentMultiplier = 1.0;
             resetPortionChips();
             historyPanel.classList.remove('open');
@@ -922,6 +829,7 @@ Analyzed with NutriSnap AI`;
         if (found && found.fullData) {
           currentImageData = { dataUrl: found.thumbnail, base64: '', mimeType: 'image/jpeg' };
           currentRawData = found.fullData;
+          currentHistoryId = found.id;
           currentMultiplier = 1.0;
           resetPortionChips();
           renderResults(found.fullData, 1.0);
@@ -947,14 +855,147 @@ Analyzed with NutriSnap AI`;
   }
 
   clearHistoryBtn.addEventListener('click', () => {
-    if (confirm('Clear all scan history?')) {
+    if (confirm('Clear all history?')) {
       localStorage.removeItem(HISTORY_KEY);
       renderHistoryDrawer();
       updateRecentScans();
       updateHistoryBadge();
-      showToast('Scan history cleared');
+      showToast('History cleared');
     }
   });
+
+  // ─── Profile (saved in localStorage, sent with every request) ─
+  const PROFILE_KEY = 'nutrisnap_profile';
+  const LB = 2.20462, IN = 0.393701;
+  const pf = {
+    units: document.getElementById('pfUnits'),
+    age: document.getElementById('pfAge'),
+    sex: document.getElementById('pfSex'),
+    weight: document.getElementById('pfWeight'),
+    height: document.getElementById('pfHeight'),
+    activity: document.getElementById('pfActivity'),
+    goal: document.getElementById('pfGoal'),
+    notes: document.getElementById('pfNotes'),
+    wUnit: document.getElementById('pfWeightUnit'),
+    hUnit: document.getElementById('pfHeightUnit'),
+  };
+
+  function getProfile() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; } catch { return {}; }
+  }
+
+  function hasProfile(p = getProfile()) {
+    return !!(p.age || p.weightKg || p.heightCm || p.goal || p.notes);
+  }
+
+  function getGoals() {
+    const p = getProfile();
+    let cal = 2000, prot = 130;
+    if (p.age && p.weightKg && p.heightCm) {
+      const base = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age + (p.sex === 'male' ? 5 : p.sex === 'female' ? -161 : -78);
+      const mult = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 }[p.activity] || 1.375;
+      cal = base * mult + (p.goal === 'lose' ? -450 : p.goal === 'gain' ? 300 : 0);
+      cal = Math.max(1200, Math.round(cal / 10) * 10);
+      prot = Math.round(p.weightKg * (p.goal === 'lose' || p.goal === 'gain' ? 2.0 : 1.6));
+    }
+    const fat = Math.round((cal * 0.28) / 9);
+    const carbs = Math.max(0, Math.round((cal - prot * 4 - fat * 9) / 4));
+    return { cal, p: prot, c: carbs, f: fat };
+  }
+
+  function profileForAI() {
+    const p = getProfile();
+    if (!hasProfile(p)) return null;
+    return {
+      age: p.age || null,
+      sex: p.sex || null,
+      weight_kg: p.weightKg ? Math.round(p.weightKg * 10) / 10 : null,
+      height_cm: p.heightCm ? Math.round(p.heightCm) : null,
+      activity: p.activity || null,
+      goal: p.goal || null,
+      notes: p.notes || null,
+      daily_calorie_target: getGoals().cal,
+    };
+  }
+
+  function fillProfileForm() {
+    const p = getProfile();
+    const imperial = (p.units || 'imperial') === 'imperial';
+    pf.units.value = p.units || 'imperial';
+    pf.wUnit.textContent = imperial ? 'lb' : 'kg';
+    pf.hUnit.textContent = imperial ? 'in' : 'cm';
+    pf.age.value = p.age || '';
+    pf.sex.value = p.sex || '';
+    pf.weight.value = p.weightKg ? Math.round(p.weightKg * (imperial ? LB : 1) * 10) / 10 : '';
+    pf.height.value = p.heightCm ? Math.round(p.heightCm * (imperial ? IN : 1) * 10) / 10 : '';
+    pf.activity.value = p.activity || '';
+    pf.goal.value = p.goal || '';
+    pf.notes.value = p.notes || '';
+    renderTarget();
+  }
+
+  function saveProfile() {
+    const imperial = pf.units.value === 'imperial';
+    const w = parseFloat(pf.weight.value), h = parseFloat(pf.height.value), a = parseInt(pf.age.value);
+    const p = {
+      units: pf.units.value,
+      age: a > 0 ? a : null,
+      sex: pf.sex.value,
+      weightKg: w > 0 ? w / (imperial ? LB : 1) : null,
+      heightCm: h > 0 ? h / (imperial ? IN : 1) : null,
+      activity: pf.activity.value,
+      goal: pf.goal.value,
+      notes: pf.notes.value.trim(),
+    };
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+    renderTarget();
+    updateDailyTrackerUI();
+    updateNudge();
+  }
+
+  function renderTarget() {
+    const p = getProfile();
+    if (p.age && p.weightKg && p.heightCm) {
+      const g = getGoals();
+      pfTarget.innerHTML = `<span>Daily target</span><strong>${g.cal.toLocaleString()} kcal</strong><small>${g.p}g protein · ${g.c}g carbs · ${g.f}g fat</small>`;
+    } else {
+      pfTarget.innerHTML = '<small>Add age, weight and height to get a daily calorie target.</small>';
+    }
+  }
+
+  function updateNudge() {
+    profileNudge.style.display = hasProfile() ? 'none' : '';
+  }
+
+  pf.units.addEventListener('change', () => {
+    // Re-render displayed values in the newly chosen unit from stored metric values.
+    const p = getProfile();
+    p.units = pf.units.value;
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+    fillProfileForm();
+  });
+  ['age', 'sex', 'weight', 'height', 'activity', 'goal', 'notes'].forEach(k => {
+    pf[k].addEventListener('input', saveProfile);
+    pf[k].addEventListener('change', saveProfile);
+  });
+
+  function openProfile() {
+    fillProfileForm();
+    profilePanel.classList.add('open');
+  }
+  profileBtn.addEventListener('click', openProfile);
+  profileNudge.addEventListener('click', openProfile);
+  closeProfileBtn.addEventListener('click', () => profilePanel.classList.remove('open'));
+
+  // ─── Home ────────────────────────────────────────────────────
+  function goHome() {
+    if (abortController) abortController.abort();
+    [dailyDrawer, historyPanel, profilePanel, installModal].forEach(el => el.classList.remove('open'));
+    showSection(uploadSection);
+    updateRecentScans();
+    updateNudge();
+  }
+  homeBtn.addEventListener('click', goHome);
 
   // ─── iPhone Install Guide Modal ──────────────────────────────
   installGuideBtn.addEventListener('click', () => {
@@ -1021,4 +1062,5 @@ Analyzed with NutriSnap AI`;
   updateDailyTrackerUI();
   updateRecentScans();
   updateHistoryBadge();
+  updateNudge();
 });

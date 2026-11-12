@@ -1,10 +1,10 @@
 /**
  * NutriSnap Service Worker (v2)
- * Caches the app shell and sample assets for instant offline PWA launch on iPhone.
+ * Caches the app shell for instant offline PWA launch on iPhone.
  * API endpoints (/api/*) always use network-first.
  */
 
-const CACHE_NAME = 'nutrisnap-v3';
+const CACHE_NAME = 'nutrisnap-v4';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -12,11 +12,7 @@ const SHELL_ASSETS = [
   '/app.js',
   '/manifest.json',
   '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/samples/salmon_bowl.jpg',
-  '/samples/berry_smoothie.jpg',
-  '/samples/chicken_salad.jpg',
-  '/samples/iced_latte.jpg'
+  '/icons/icon-512.png'
 ];
 
 // Install — cache app shell

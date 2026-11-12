@@ -7,9 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="NutriSnap">
   <meta name="theme-color" content="#ffffff">
-  <meta name="description" content="Snap a photo of your food or drink and get instant AI-powered nutritional analysis.">
+  <meta name="description" content="Photograph a meal and get calories and macros, personalized to you.">
   
-  <title>NutriSnap — AI Food &amp; Drink Nutritionist</title>
+  <title>NutriSnap</title>
   
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
@@ -21,10 +21,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="format-detection" content="telephone=no">
   
-  <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
@@ -41,33 +40,22 @@
 
     <!-- Top Header -->
     <header class="header">
-      <div class="header-left">
-        <div class="app-logo">
-          <i data-lucide="scan-line"></i>
-        </div>
-        <div class="header-brand">
-          <h1 class="app-title">Nutri<span>Snap</span></h1>
-          <span class="app-subtitle">AI Nutritionist</span>
-        </div>
-      </div>
+      <button class="brand" id="homeBtn" aria-label="Home">
+        <span class="app-logo"><i data-lucide="scan-line"></i></span>
+        <span class="app-title">Nutri<span>Snap</span></span>
+      </button>
 
       <div class="header-right">
-        <!-- Daily Tracker Pill Button -->
-        <button class="daily-pill-btn" id="dailyPillBtn" title="View Today's Log">
-          <span class="fire-icon">🔥</span>
+        <button class="daily-pill-btn" id="dailyPillBtn" title="Today's log">
           <span class="daily-pill-val" id="headerDailyCals">0</span>
           <span class="daily-pill-unit">kcal</span>
         </button>
-
-        <!-- Install Guide Button -->
-        <button class="icon-btn" id="installGuideBtn" title="Install on iPhone" aria-label="Install">
-          <i data-lucide="smartphone"></i>
-        </button>
-
-        <!-- History Button -->
-        <button class="icon-btn" id="historyBtn" title="Scan History" aria-label="History">
+        <button class="icon-btn" id="historyBtn" title="History" aria-label="History">
           <i data-lucide="clock"></i>
           <span class="history-badge" id="historyBadge" style="display:none">0</span>
+        </button>
+        <button class="icon-btn" id="profileBtn" title="Your profile" aria-label="Profile">
+          <i data-lucide="user"></i>
         </button>
       </div>
     </header>
@@ -80,90 +68,39 @@
       <!-- ============================================== -->
       <section class="upload-section" id="uploadSection">
         
-        <!-- Hero Card -->
         <div class="upload-hero">
-          <div class="hero-badge">
-            <span class="pulse-dot"></span>
-            <span>Google Gemini Vision AI</span>
-          </div>
-          <h2>Analyze Your Food</h2>
-          <p>Snap a bowl of food or a drink to get instant portion estimation, calories &amp; macro breakdown.</p>
+          <h2>What are you eating?</h2>
+          <p>Take or upload a photo to get calories and macros.</p>
         </div>
 
-        <!-- Camera & Gallery Action Buttons -->
         <div class="upload-actions">
-          <button class="upload-btn primary-btn" id="cameraBtn">
-            <div class="btn-icon-circle">
-              <i data-lucide="camera"></i>
-            </div>
-            <div class="btn-text-group">
-              <strong>Take Photo</strong>
-              <span>Rear camera launch</span>
-            </div>
+          <button class="pill-btn pill-primary" id="cameraBtn">
+            <i data-lucide="camera"></i><span>Take photo</span>
           </button>
-
-          <button class="upload-btn secondary-btn" id="galleryBtn">
-            <div class="btn-icon-circle">
-              <i data-lucide="image"></i>
-            </div>
-            <div class="btn-text-group">
-              <strong>Choose from Photos</strong>
-              <span>Photo library or files</span>
-            </div>
+          <button class="pill-btn pill-ghost" id="galleryBtn">
+            <i data-lucide="image"></i><span>Upload</span>
           </button>
         </div>
+
+        <button class="nudge" id="profileNudge" style="display:none">
+          <span>Add your age and weight for results tailored to you</span>
+          <i data-lucide="chevron-right"></i>
+        </button>
 
         <!-- Desktop / Drag & Drop Zone -->
         <div class="dropzone" id="dropzone">
           <i data-lucide="upload-cloud"></i>
-          <span>or drag &amp; drop food photo here</span>
+          <span>or drop a photo here</span>
         </div>
 
         <!-- Hidden file inputs -->
         <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
         <input type="file" id="galleryInput" accept="image/*" hidden>
 
-        <!-- Try Sample Foods Strip -->
-        <div class="samples-wrapper">
-          <div class="section-label-row">
-            <span class="section-label">Try a sample</span>
-            <span class="section-hint">Tap to analyze</span>
-          </div>
-          <div class="samples-grid">
-            <div class="sample-card" data-sample="salmon_bowl.jpg" data-title="Salmon Avocado Bowl">
-              <div class="sample-img-wrap">
-                <img src="samples/salmon_bowl.jpg" alt="Salmon Bowl" loading="lazy">
-              </div>
-              <span class="sample-title">Salmon Bowl</span>
-            </div>
-
-            <div class="sample-card" data-sample="berry_smoothie.jpg" data-title="Berry Protein Smoothie">
-              <div class="sample-img-wrap">
-                <img src="samples/berry_smoothie.jpg" alt="Berry Smoothie" loading="lazy">
-              </div>
-              <span class="sample-title">Berry Smoothie</span>
-            </div>
-
-            <div class="sample-card" data-sample="chicken_salad.jpg" data-title="Chicken Caesar Bowl">
-              <div class="sample-img-wrap">
-                <img src="samples/chicken_salad.jpg" alt="Chicken Bowl" loading="lazy">
-              </div>
-              <span class="sample-title">Chicken Bowl</span>
-            </div>
-
-            <div class="sample-card" data-sample="iced_latte.jpg" data-title="Iced Oat Latte">
-              <div class="sample-img-wrap">
-                <img src="samples/iced_latte.jpg" alt="Iced Latte" loading="lazy">
-              </div>
-              <span class="sample-title">Iced Latte</span>
-            </div>
-          </div>
-        </div>
-
         <!-- Recent Scans Row -->
         <div class="recent-section" id="recentSection" style="display:none">
           <div class="section-label-row">
-            <span class="section-label">Recent Scans</span>
+            <span class="section-label">Recent</span>
             <button class="link-btn" id="seeAllRecentBtn">View all</button>
           </div>
           <div class="recent-grid" id="recentGrid"></div>
@@ -190,14 +127,14 @@
           <div class="preview-status" id="previewStatus">
             <div class="status-spinner"></div>
             <div class="status-texts">
-              <strong>Identifying meal &amp; portion size...</strong>
-              <span id="analyzingStepText">Analyzing ingredients with Gemini AI</span>
+              <strong>Analyzing your meal</strong>
+              <span id="analyzingStepText">Reading your photo</span>
             </div>
           </div>
         </div>
         <button class="cancel-btn" id="cancelBtn">
           <i data-lucide="x"></i>
-          <span>Cancel Analysis</span>
+          <span>Cancel</span>
         </button>
       </section>
 
@@ -209,41 +146,35 @@
         <!-- Result Food Image with Badges -->
         <div class="result-image-card">
           <img id="resultImage" alt="Analyzed food">
-          <div class="result-image-overlay">
-            <div class="result-tag-pill">
-              <i data-lucide="sparkles"></i> AI Estimated
-            </div>
-          </div>
         </div>
-
-        <!-- Dietary Tags Strip -->
+<!-- Dietary Tags Strip -->
         <div class="dietary-tags-row" id="dietaryTagsRow"></div>
 
         <!-- Summary & Portion Intro -->
         <div class="summary-card" id="summaryCard">
-          <h3 class="summary-heading">Meal Overview</h3>
+          <h3 class="summary-heading" id="mealName">Your meal</h3>
           <p class="summary-text" id="summaryText"></p>
         </div>
 
         <!-- Portion Adjustment Multiplier -->
         <div class="portion-card">
           <div class="portion-header">
-            <span class="portion-title"><i data-lucide="scale"></i> Portion Multiplier</span>
-            <span class="portion-active-val" id="portionLabel">1.0x (Standard)</span>
+            <span class="portion-title">Portion</span>
+            <span class="portion-active-val" id="portionLabel">1x</span>
           </div>
           <div class="portion-chips">
-            <button class="portion-chip" data-scale="0.5">0.5x Half</button>
-            <button class="portion-chip active" data-scale="1.0">1.0x Normal</button>
-            <button class="portion-chip" data-scale="1.5">1.5x Large</button>
-            <button class="portion-chip" data-scale="2.0">2.0x Double</button>
+            <button class="portion-chip" data-scale="0.5">0.5x</button>
+            <button class="portion-chip active" data-scale="1.0">1x</button>
+            <button class="portion-chip" data-scale="1.5">1.5x</button>
+            <button class="portion-chip" data-scale="2.0">2x</button>
           </div>
         </div>
 
         <!-- Totals & Macro Card -->
         <div class="totals-card">
           <div class="totals-card-header">
-            <span class="section-label">Nutritional Totals</span>
-            <span class="daily-pct" id="calDailyPct">23% of 2,000 kcal</span>
+            <span class="section-label">Totals</span>
+            <span class="daily-pct" id="calDailyPct"></span>
           </div>
 
           <!-- Circular Calorie Display -->
@@ -315,7 +246,7 @@
         <!-- Detected Items List -->
         <div class="items-card" id="itemsCard">
           <div class="section-label-row">
-            <span class="section-label">Identified Ingredients</span>
+            <span class="section-label">Ingredients</span>
             <span class="items-count-badge" id="itemsCountBadge">0 items</span>
           </div>
           <div class="items-list" id="itemsList"></div>
@@ -327,69 +258,42 @@
             <i data-lucide="lightbulb"></i>
           </div>
           <div class="tip-content">
-            <strong>Nutritionist Insight</strong>
+            <strong>Tip</strong>
             <p class="tip-text" id="tipText"></p>
           </div>
         </div>
 
-        <!-- Ask AI Follow-up Nutrition Coach -->
-        <div class="ask-ai-card">
-          <div class="ask-ai-header">
-            <i data-lucide="message-circle-question"></i>
-            <div>
-              <strong>Ask Nutritionist AI</strong>
-              <span>Have a question about this meal?</span>
-            </div>
+        <!-- Nutritionist chat -->
+        <div class="chat-card">
+          <div class="chat-head">
+            <strong>Talk to your nutritionist</strong>
+            <span>Wrong dish, or something added or missing? Tell me and I'll recalculate.</span>
           </div>
-
-          <!-- Quick Question Prompts -->
+          <div class="chat-thread" id="chatThread"></div>
           <div class="ask-prompts">
-            <button class="ask-prompt-chip" data-q="Is this meal good for weight loss and fat burning?">
-              Fat loss friendly?
-            </button>
-            <button class="ask-prompt-chip" data-q="How can I increase the protein content of this meal?">
-              Add more protein?
-            </button>
-            <button class="ask-prompt-chip" data-q="What is the glycemic impact of this meal?">
-              Blood sugar spike?
-            </button>
+            <button class="ask-prompt-chip" data-q="Is this a good meal for my goal?">Good for my goal?</button>
+            <button class="ask-prompt-chip" data-q="How can I add more protein to this?">More protein?</button>
+            <button class="ask-prompt-chip" data-q="How will this affect my blood sugar?">Blood sugar?</button>
           </div>
-
-          <!-- Ask Input Form -->
           <form class="ask-form" id="askForm">
-            <input type="text" id="askInput" placeholder="e.g. Is this meal keto-friendly?" autocomplete="off">
+            <input type="text" id="askInput" placeholder="e.g. that's brown rice, no sauce" autocomplete="off">
             <button type="submit" class="ask-btn" id="askSubmitBtn" aria-label="Send">
-              <i data-lucide="send"></i>
+              <i data-lucide="arrow-up"></i>
             </button>
           </form>
-
-          <!-- Ask Response Box -->
-          <div class="ask-response-box" id="askResponseBox" style="display:none">
-            <div class="ask-response-spinner" id="askSpinner" style="display:none">
-              <div class="status-spinner"></div>
-              <span>Consulting AI Nutritionist...</span>
-            </div>
-            <p class="ask-response-text" id="askResponseText"></p>
-          </div>
         </div>
 
         <!-- Result Action Buttons -->
         <div class="result-actions">
-          <button class="action-btn log-btn" id="logMealBtn">
-            <i data-lucide="plus-circle"></i>
-            <span>Log to Today's Tracker</span>
+          <button class="pill-btn pill-primary" id="logMealBtn">
+            <i data-lucide="plus"></i><span>Log meal</span>
           </button>
-          
-          <div class="secondary-actions-row">
-            <button class="action-btn share-btn" id="shareMealBtn">
-              <i data-lucide="share-2"></i>
-              <span>Share</span>
-            </button>
-            <button class="action-btn scan-again-btn" id="scanAgainBtn">
-              <i data-lucide="camera"></i>
-              <span>Scan Another</span>
-            </button>
-          </div>
+          <button class="pill-btn pill-ghost" id="shareMealBtn">
+            <i data-lucide="share-2"></i><span>Share</span>
+          </button>
+          <button class="pill-btn pill-ghost" id="scanAgainBtn">
+            <i data-lucide="camera"></i><span>New scan</span>
+          </button>
         </div>
       </section>
 
@@ -402,10 +306,10 @@
             <i data-lucide="alert-circle"></i>
           </div>
           <h3 id="errorTitle">Unable to Analyze</h3>
-          <p id="errorMessage">Could not detect food in this image. Please snap a clearer photo of a meal or drink.</p>
-          <button class="upload-btn primary-btn" id="retryBtn">
+          <p id="errorMessage">Something went wrong. Try again.</p>
+          <button class="pill-btn pill-primary" id="retryBtn">
             <i data-lucide="rotate-ccw"></i>
-            <span>Try Another Photo</span>
+            <span>Try again</span>
           </button>
         </div>
       </section>
@@ -416,7 +320,7 @@
       <div class="drawer" id="dailyDrawer">
         <div class="drawer-header">
           <div>
-            <h2>Today's Nutrition Log</h2>
+            <h2>Today</h2>
             <span class="drawer-subtitle" id="dailyDateLabel">Today</span>
           </div>
           <button class="icon-btn" id="closeDailyBtn" aria-label="Close">
@@ -429,9 +333,9 @@
           <div class="daily-summary-card">
             <div class="daily-stat-row">
               <div>
-                <span class="daily-stat-label">Total Calories</span>
+                <span class="daily-stat-label">Calories</span>
                 <strong class="daily-stat-big" id="dailyTotalCals">0</strong>
-                <span class="daily-stat-target">/ 2,000 kcal goal</span>
+                <span class="daily-stat-target" id="dailyGoalLabel">/ 2,000 kcal</span>
               </div>
               <div class="daily-cal-pct-circle" id="dailyCalsCircle">0%</div>
             </div>
@@ -472,17 +376,17 @@
 
           <!-- Logged Meals List -->
           <div class="daily-meals-wrap">
-            <h3 class="section-label">Logged Meals Today</h3>
+            <h3 class="section-label">Meals</h3>
             <div class="daily-meals-list" id="dailyMealsList">
               <div class="empty-state">
                 <i data-lucide="utensils"></i>
-                <p>No meals logged yet today. Scan a meal and tap "Log to Today's Tracker"!</p>
+                <p>Nothing logged yet. Scan a meal and tap Log meal.</p>
               </div>
             </div>
           </div>
 
           <button class="danger-btn" id="clearDailyBtn" style="display:none">
-            <i data-lucide="trash-2"></i> Clear Today's Log
+            <i data-lucide="trash-2"></i> Clear today
           </button>
         </div>
       </div>
@@ -494,7 +398,7 @@
         <div class="drawer-header">
           <div>
             <h2>Scan History</h2>
-            <span class="drawer-subtitle">All past food scans</span>
+            <span class="drawer-subtitle">Past scans</span>
           </div>
           <button class="icon-btn" id="closeHistoryBtn" aria-label="Close">
             <i data-lucide="x"></i>
@@ -505,18 +409,72 @@
           <div class="history-list" id="historyList">
             <div class="empty-state">
               <i data-lucide="search"></i>
-              <p>No scans yet. Take a photo to get started!</p>
+              <p>No scans yet.</p>
             </div>
           </div>
           <button class="danger-btn" id="clearHistoryBtn" style="display:none">
-            <i data-lucide="trash-2"></i> Clear History
+            <i data-lucide="trash-2"></i> Clear history
           </button>
         </div>
       </div>
 
-      <!-- ============================================== -->
-      <!-- MODAL: IPHONE PWA INSTALL GUIDE                -->
-      <!-- ============================================== -->
+      <!-- DRAWER 3: PROFILE -->
+      <div class="drawer" id="profilePanel">
+        <div class="drawer-header">
+          <div>
+            <h2>Your profile</h2>
+            <span class="drawer-subtitle">Saved on this device. Used for every analysis.</span>
+          </div>
+          <button class="icon-btn" id="closeProfileBtn" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div class="form-card">
+            <div class="field">
+              <label for="pfUnits">Units</label>
+              <select id="pfUnits"><option value="imperial">Imperial (lb, in)</option><option value="metric">Metric (kg, cm)</option></select>
+            </div>
+            <div class="field-row">
+              <div class="field"><label for="pfAge">Age</label><input id="pfAge" type="number" inputmode="numeric" min="10" max="110" placeholder="30"></div>
+              <div class="field"><label for="pfSex">Sex</label>
+                <select id="pfSex"><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label for="pfWeight">Weight (<span id="pfWeightUnit">lb</span>)</label><input id="pfWeight" type="number" inputmode="decimal" placeholder="180"></div>
+              <div class="field"><label for="pfHeight">Height (<span id="pfHeightUnit">in</span>)</label><input id="pfHeight" type="number" inputmode="decimal" placeholder="70"></div>
+            </div>
+            <div class="field">
+              <label for="pfActivity">Activity</label>
+              <select id="pfActivity">
+                <option value="">Select</option>
+                <option value="sedentary">Mostly sitting</option>
+                <option value="light">Light (1-3 workouts/week)</option>
+                <option value="moderate">Moderate (3-5 workouts/week)</option>
+                <option value="active">Very active (6+ workouts/week)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pfGoal">Goal</label>
+              <select id="pfGoal">
+                <option value="">Select</option>
+                <option value="lose">Lose fat</option>
+                <option value="maintain">Maintain</option>
+                <option value="gain">Build muscle / gain</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pfNotes">Diet notes</label>
+              <input id="pfNotes" type="text" maxlength="300" placeholder="Allergies, vegetarian, etc.">
+            </div>
+          </div>
+          <div class="target-card" id="pfTarget"></div>
+          <button class="pill-btn pill-ghost" id="installGuideBtn"><i data-lucide="smartphone"></i><span>Install on iPhone</span></button>
+        </div>
+      </div>
+
+      <!-- MODAL: IPHONE PWA INSTALL GUIDE -->
       <div class="modal-backdrop" id="installModal">
         <div class="modal-card">
           <div class="modal-header">
@@ -530,7 +488,7 @@
           </div>
 
           <div class="modal-body">
-            <p class="modal-lead">Get a full-screen app experience with zero browser address bar:</p>
+            <p class="modal-lead">Run it full screen, like a native app:</p>
             
             <div class="install-steps">
               <div class="install-step">
@@ -560,11 +518,11 @@
 
             <div class="install-tip">
               <i data-lucide="check-circle-2"></i>
-              <span>NutriSnap will appear as a native app on your iPhone home screen!</span>
+              <span>NutriSnap will show up on your home screen.</span>
             </div>
           </div>
 
-          <button class="upload-btn primary-btn" id="gotItInstallBtn">Got It</button>
+          <button class="pill-btn pill-primary" id="gotItInstallBtn">Got it</button>
         </div>
       </div>
 
@@ -574,7 +532,7 @@
   <!-- Toast Notification -->
   <div class="toast-pill" id="toastPill">
     <i data-lucide="check"></i>
-    <span id="toastMsg">Logged!</span>
+    <span id="toastMsg"></span>
   </div>
 
   <script src="app.js"></script>

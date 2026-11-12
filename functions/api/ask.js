@@ -1,99 +1,60 @@
-/**
- * Cloudflare Pages Function: /api/ask
- * Handles follow-up questions to the AI nutritionist about the current meal.
- */
+// POST /api/ask  { question, analysis, multiplier, profile?, history? }
+//   -> { reply: string, analysis: object | null }
+// If the user corrects the meal (different dish, added/removed ingredient,
+// different amount) the model returns a full re-analysis in `analysis`.
+import { CORS, reply, profileText, parseJson, generate } from "../_ai.js";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Content-Type": "application/json",
-};
+const SYSTEM = `You are the user's personal nutritionist inside a meal-scanning app. You are given the current analysis of their meal (JSON), their profile, and the recent chat.
 
-export async function onRequest(context) {
-  const { request } = context;
+Decide what the user's message is:
+A) A correction or change: the dish is something else, an ingredient was added/removed/swapped, or a quantity or portion is different (e.g. "that's brown rice", "no dressing", "I had two of them", "add an avocado").
+   -> Recompute the WHOLE analysis with that change applied. Keep everything that was not changed. Return it in "analysis" using exactly the same JSON shape as the current analysis (meal_name, items, totals, dietary_tags, summary, health_tip). Totals must equal the sum of items. Update meal_name, summary and health_tip if they no longer fit.
+B) A question or conversation: answer it. Set "analysis" to null.
 
-  if (request.method === "OPTIONS") {
-    return new Response(null, { headers: CORS_HEADERS });
-  }
+Always return ONLY this JSON:
+{"reply": "...", "analysis": null}
 
-  if (request.method !== "POST") {
-    return new Response(JSON.stringify({ error: `Method ${request.method} not allowed.` }), {
-      status: 405,
-      headers: CORS_HEADERS,
-    });
-  }
+Reply style: 1 to 3 short sentences, direct, specific to this meal and this person's profile and goal. For corrections, say what changed and the new calorie total. No emoji, no filler, no disclaimers unless something is a real health risk.`;
 
-  return handleAsk(context);
-}
+export const onRequestOptions = () => new Response(null, { headers: CORS });
 
-export async function onRequestPost(context) {
-  return handleAsk(context);
-}
-
-export async function onRequestOptions() {
-  return new Response(null, { headers: CORS_HEADERS });
-}
-
-async function handleAsk(context) {
+export async function onRequestPost({ request, env }) {
   try {
-    const { request, env } = context;
-
-    const apiKey = env.GEMINI_API_KEY || "AQ.Ab8RN6KCf4Kb0rEltshTHrN_vU1Jujh_QK5zKR9kuxV2ribR2Q";
-    const model = env.GEMINI_MODEL || "gemini-flash-lite-latest";
-
     const body = await request.json().catch(() => null);
-    if (!body || !body.question) {
-      return new Response(
-        JSON.stringify({ error: "Missing question in request body." }),
-        { status: 400, headers: CORS_HEADERS }
-      );
-    }
+    if (!body?.question || !body?.analysis) return reply({ error: "Missing question or analysis." }, 400);
 
-    const { mealContext, question } = body;
+    const history = (body.history || [])
+      .slice(-8)
+      .map((m) => `${m.role === "user" ? "User" : "Nutritionist"}: ${String(m.text).slice(0, 500)}`)
+      .join("\n");
 
-    const prompt = `You are NutriSnap AI, a friendly, certified nutritionist.
-Meal Context: ${mealContext || "A healthy meal"}
+    const prompt = `User profile: ${profileText(body.profile)}
 
-User Question: ${question}
+Current analysis (baseline 1x portion):
+${JSON.stringify(body.analysis)}
 
-Provide a concise, friendly, helpful 2-4 sentence response specifically tailored to this meal and the user's health inquiry.`;
+The user is currently viewing it at ${body.multiplier || 1}x portion.
 
-    const payload = {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.5,
-        maxOutputTokens: 500,
-      },
-    };
+Recent chat:
+${history || "(none)"}
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+User message: ${String(body.question).slice(0, 800)}`;
 
-    const resp = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const text = await generate(env, {
+      system: SYSTEM,
+      temperature: 0.3,
+      parts: [{ text: prompt }],
     });
 
-    if (!resp.ok) {
-      return new Response(
-        JSON.stringify({ error: `AI error: HTTP ${resp.status}` }),
-        { status: resp.status, headers: CORS_HEADERS }
-      );
+    let out;
+    try {
+      out = parseJson(text);
+    } catch {
+      return reply({ reply: text.trim() || "I couldn't answer that. Try rephrasing.", analysis: null });
     }
-
-    const data = await resp.json();
-    const parts = data.candidates?.[0]?.content?.parts;
-    const answer = parts && parts.length > 0 ? parts[0].text : "No answer returned.";
-
-    return new Response(JSON.stringify({ answer: answer.trim() }), {
-      status: 200,
-      headers: CORS_HEADERS,
-    });
+    const valid = out.analysis && out.analysis.totals && Array.isArray(out.analysis.items);
+    return reply({ reply: out.reply || "Updated.", analysis: valid ? out.analysis : null });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: `Server error: ${err.message}` }),
-      { status: 500, headers: CORS_HEADERS }
-    );
+    return reply({ error: err.message }, err.status || 500);
   }
 }
