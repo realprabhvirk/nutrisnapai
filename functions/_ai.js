@@ -40,7 +40,7 @@ export async function generate(env, { system, parts, temperature = 0.3, maxOutpu
     e.status = 500;
     throw e;
   }
-  const model = env.AI_MODEL || "gemini-flash-lite-latest";
+  const model = env.AI_MODEL || "gemini-2.5-flash-lite";
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
     system_instruction: { parts: [{ text: system }] },

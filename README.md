@@ -9,7 +9,7 @@ Photograph a meal, get calories and macros tailored to your profile. Chat with t
 
 1. Connect the repo. Framework preset: None. No build command. Output directory: `/`.
 2. Settings → Variables and Secrets → add a **secret** named `GEMINI_API_KEY`.
-3. Optional: `AI_MODEL` to override the default model.
+3. Optional: `AI_MODEL` to override the model (default `gemini-2.5-flash-lite`, the low-latency tier). No redeploy of code needed, just change the variable.
 
 The key is only read server-side by the functions; it is never in the front-end code.
 
