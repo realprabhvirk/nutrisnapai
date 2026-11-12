@@ -671,6 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (window.lucide) lucide.createIcons();
+    if (typeof updateHome === 'function') updateHome();
   }
 
   // Daily Tracker Drawer Toggles
@@ -876,6 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activity: document.getElementById('pfActivity'),
     goal: document.getElementById('pfGoal'),
     notes: document.getElementById('pfNotes'),
+    name: document.getElementById('pfName'),
     wUnit: document.getElementById('pfWeightUnit'),
     hUnit: document.getElementById('pfHeightUnit'),
   };
@@ -931,6 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
     pf.activity.value = p.activity || '';
     pf.goal.value = p.goal || '';
     pf.notes.value = p.notes || '';
+    pf.name.value = p.name || '';
     renderTarget();
   }
 
@@ -946,11 +949,13 @@ document.addEventListener('DOMContentLoaded', () => {
       activity: pf.activity.value,
       goal: pf.goal.value,
       notes: pf.notes.value.trim(),
+      name: pf.name.value.trim(),
     };
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
     renderTarget();
     updateDailyTrackerUI();
     updateNudge();
+    updateHome();
   }
 
   function renderTarget() {
@@ -974,7 +979,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
     fillProfileForm();
   });
-  ['age', 'sex', 'weight', 'height', 'activity', 'goal', 'notes'].forEach(k => {
+  ['name', 'age', 'sex', 'weight', 'height', 'activity', 'goal', 'notes'].forEach(k => {
     pf[k].addEventListener('input', saveProfile);
     pf[k].addEventListener('change', saveProfile);
   });
@@ -987,6 +992,60 @@ document.addEventListener('DOMContentLoaded', () => {
   profileNudge.addEventListener('click', openProfile);
   closeProfileBtn.addEventListener('click', () => profilePanel.classList.remove('open'));
 
+  // ─── Home dashboard ──────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  function updateHome() {
+    const p = getProfile();
+    const g = getGoals();
+    const meals = getDailyMeals();
+    const sum = k => meals.reduce((a, m) => a + (m[k] || 0), 0);
+    const eaten = Math.round(sum('calories'));
+    const left = g.cal - eaten;
+
+    const hr = new Date().getHours();
+    const hello = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+    $('homeGreeting').textContent = p.name ? `${hello}, ${p.name}` : hello;
+    $('homeDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+
+    $('homeRemain').textContent = Math.abs(left).toLocaleString();
+    $('homeRemainLabel').textContent = left >= 0 ? 'kcal left' : 'kcal over';
+    $('homeEaten').textContent = eaten.toLocaleString();
+    $('homeGoal').textContent = g.cal.toLocaleString();
+    $('homeMealCount').textContent = meals.length;
+    $('homeRing').style.strokeDashoffset = 326.7 * (1 - Math.min(eaten / g.cal, 1));
+    $('homeRing').style.stroke = left < 0 ? 'var(--fat)' : '';
+
+    [['P', 'protein', g.p], ['C', 'carbs', g.c], ['F', 'fat', g.f]].forEach(([k, field, goal]) => {
+      const v = Math.round(sum(field));
+      $(`hm${k}Bar`).style.width = `${Math.min(100, Math.round((v / goal) * 100))}%`;
+      $(`hm${k}Val`).textContent = `${v} / ${goal}g`;
+    });
+
+    const goalName = { lose: 'Fat loss', gain: 'Building', maintain: 'Maintaining' }[p.goal];
+    const tag = $('goalTag');
+    tag.textContent = (p.age && p.weightKg && p.heightCm)
+      ? `${goalName ? goalName + ' · ' : ''}${g.cal.toLocaleString()} kcal target · Edit`
+      : 'Default 2,000 kcal goal · Personalize';
+
+    const sec = $('homeMealsSection');
+    if (meals.length) {
+      sec.style.display = '';
+      $('homeMealsList').innerHTML = meals.slice(0, 3).map(m => `
+        <div class="logged-meal-item">
+          <div class="item-thumb"><img src="${m.thumbnail}" alt=""></div>
+          <div class="item-details">
+            <strong>${escapeHtml(m.title)}</strong>
+            <span class="item-meta">${m.time} &bull; P:${m.protein}g C:${m.carbs}g F:${m.fat}g</span>
+          </div>
+          <span class="item-cal-badge">${m.calories} kcal</span>
+        </div>`).join('');
+    } else {
+      sec.style.display = 'none';
+    }
+  }
+  $('goalTag').addEventListener('click', openProfile);
+  $('homeViewAll').addEventListener('click', () => $('dailyPillBtn').click());
+
   // ─── Home ────────────────────────────────────────────────────
   function goHome() {
     if (abortController) abortController.abort();
@@ -994,6 +1053,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showSection(uploadSection);
     updateRecentScans();
     updateNudge();
+    updateHome();
   }
   homeBtn.addEventListener('click', goHome);
 
@@ -1063,4 +1123,5 @@ document.addEventListener('DOMContentLoaded', () => {
   updateRecentScans();
   updateHistoryBadge();
   updateNudge();
+  updateHome();
 });

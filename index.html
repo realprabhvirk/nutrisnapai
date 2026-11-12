@@ -69,8 +69,34 @@
       <section class="upload-section" id="uploadSection">
         
         <div class="upload-hero">
-          <h2>What are you eating?</h2>
-          <p>Take or upload a photo to get calories and macros.</p>
+          <span class="home-date" id="homeDate"></span>
+          <h2 id="homeGreeting">Hello</h2>
+        </div>
+
+        <div class="home-card">
+          <div class="home-top">
+            <div class="home-ring">
+              <svg viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" class="ring-bg"/>
+                <circle cx="60" cy="60" r="52" class="ring-fill" id="homeRing"/>
+              </svg>
+              <div class="calorie-center">
+                <span class="home-remain" id="homeRemain">0</span>
+                <span class="cal-label" id="homeRemainLabel">kcal left</span>
+              </div>
+            </div>
+            <div class="home-stats">
+              <div><span>Eaten</span><strong id="homeEaten">0</strong></div>
+              <div><span>Goal</span><strong id="homeGoal">2,000</strong></div>
+              <div><span>Meals</span><strong id="homeMealCount">0</strong></div>
+            </div>
+          </div>
+          <div class="home-macros">
+            <div class="hm"><span class="hm-l">Protein</span><div class="hm-track"><i class="protein-fill" id="hmPBar"></i></div><span class="hm-v" id="hmPVal">0 / 0g</span></div>
+            <div class="hm"><span class="hm-l">Carbs</span><div class="hm-track"><i class="carbs-fill" id="hmCBar"></i></div><span class="hm-v" id="hmCVal">0 / 0g</span></div>
+            <div class="hm"><span class="hm-l">Fat</span><div class="hm-track"><i class="fat-fill" id="hmFBar"></i></div><span class="hm-v" id="hmFVal">0 / 0g</span></div>
+          </div>
+          <button class="goal-tag" id="goalTag"></button>
         </div>
 
         <div class="upload-actions">
@@ -80,6 +106,14 @@
           <button class="pill-btn pill-ghost" id="galleryBtn">
             <i data-lucide="image"></i><span>Upload</span>
           </button>
+        </div>
+
+        <div class="home-meals" id="homeMealsSection" style="display:none">
+          <div class="section-label-row">
+            <span class="section-label">Today</span>
+            <button class="link-btn" id="homeViewAll">View all</button>
+          </div>
+          <div class="daily-meals-list" id="homeMealsList"></div>
         </div>
 
         <button class="nudge" id="profileNudge" style="display:none">
@@ -431,6 +465,10 @@
         </div>
         <div class="drawer-body">
           <div class="form-card">
+            <div class="field">
+              <label for="pfName">Name</label>
+              <input id="pfName" type="text" maxlength="30" placeholder="What should we call you?">
+            </div>
             <div class="field">
               <label for="pfUnits">Units</label>
               <select id="pfUnits"><option value="imperial">Imperial (lb, in)</option><option value="metric">Metric (kg, cm)</option></select>
